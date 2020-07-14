@@ -1,67 +1,101 @@
 import struct
 
-def char(c):
-    # 1 byte
-    return struct.pack('=c', c.encode('ascii'))
-
-def word(w):
-    # 2 bytes
-    return struct.pack('=h', w)
-
-def dword(d):
-    # 4 bytes
-    return struct.pack('=l',d)
 
 def color(r, g, b):
     return bytes([b, g, r])
 
+
+def normalizeColorArray(colors_array):
+    return [round(i*255) for i in colors_array]
+
+
+def char(myChar):
+		return struct.pack('=c', myChar.encode('ascii'))
+
+def word(myChar):
+	return struct.pack('=h', myChar)
+	
+def dword(myChar):
+	return struct.pack('=l', myChar)
+
 BLACK = color(0,0,0)
-WHITE = color(255,255,255)
 
 class Render(object):
-    def __init__(self, width, height):
-        self.width = width
-        self.height = height
-        self.curr_color = WHITE
-        self.clear()
-    
-    def clear(self):
-        self.pixels = [ [ BLACK for x in range(self.width)] for y in range(self.height) ]
+    # glInit dont needed, 'cause we have an __init__ func
+    def __init__(self):
+        self.framebuffer = []
+        self.width = 520
+        self.height = 300
+        self.viewport_x = 0
+        self.viewport_y = 0
+        self.viewport_width = 520
+        self.viewport_height = 300
+        self.glClear()
 
     def point(self, x, y):
-        self.pixels[y][x] = self.curr_color
+        self.framebuffer[y][x] = self.color
 
-    def set_color(self, _color):
-        self.curr_color = _color
+    def glCreateWindow(self, width, height):
+        self.height = height
+        self.width = width
 
-    def write(self, filename):
-        archivo = open(filename, 'wb')
+    def glViewport(self, x, y, width, height):
+        # Setting viewport initial values
+        self.viewport_x = x
+        self.viewport_y = y
+        self.viewport_height = height
+        self.viewport_width = width
 
-        #File header 14 bytes
-        archivo.write(char('B'))
-        archivo.write(char('M'))
-        archivo.write(dword(14 + 40 + self.width * self.height * 3))
-        archivo.write(dword(0))
-        archivo.write(dword(14 + 40))
+    def glClear(self):
+        self.framebuffer = [
+            [BLACK for x in range(self.width)] for y in range(self.height)
+        ]
 
-        # Image Header 40 bytes
-        archivo.write(dword(40))
-        archivo.write(dword(self.width))
-        archivo.write(dword(self.height))
-        archivo.write(word(1))
-        archivo.write(word(24))
-        archivo.write(dword(0))
-        archivo.write(dword(self.width * self.height * 3))
-        archivo.write(dword(0))
-        archivo.write(dword(0))
-        archivo.write(dword(0))
-        archivo.write(dword(0))
+    def glClearColor(self, r=1, g=1, b=1):
+        # get normalized colors as array
+        normalized = normalizeColorArray([r,g,b])
+        clearColor = color(normalized[0], normalized[1], normalized[2])
 
-        #Pixels, 3 bytes cada uno
+        self.framebuffer = [
+            [clearColor for x in range(self.width)] for y in range(self.height)
+        ]
 
+    def glVertex(self, x, y):
+        final_x = round((x+1) * (self.viewport_width/2) + self.viewport_x)
+        final_y = round((y+1) * (self.viewport_height/2) + self.viewport_y)
+        self.point(final_x, final_y)
+
+    def glColor(self, r=0, g=0, b=0):
+        # get normalized colors as array
+        normalized = normalizeColorArray([r,g,b])
+        self.color = color(normalized[0], normalized[1], normalized[2])
+
+    def glFinish(self, filename='output.bmp'):
+        # starts creating a new bmp file
+        f = open(filename, 'bw')
+
+        f.write(char('B'))
+        f.write(char('M'))
+        f.write(dword(14 + 40 + self.width * self.height * 3))
+        f.write(dword(0))
+        f.write(dword(14 + 40))
+
+        # image header
+        f.write(dword(40))
+        f.write(dword(self.width))
+        f.write(dword(self.height))
+        f.write(word(1))
+        f.write(word(24))
+        f.write(dword(0))
+        f.write(dword(self.width * self.height * 3))
+        f.write(dword(0))
+        f.write(dword(0))
+        f.write(dword(0))
+        f.write(dword(0))
+
+        # finishing placing points
         for x in range(self.height):
             for y in range(self.width):
-                archivo.write(self.pixels[x][y])
+                f.write(self.framebuffer[x][y])
 
-        archivo.close()
-
+        f.close()
